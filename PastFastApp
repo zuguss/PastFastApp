@@ -1,0 +1,191 @@
+package fastpastapp;
+
+import org.jxmapviewer.viewer.GeoPosition;
+import org.jxmapviewer.viewer.TileFactoryInfo;
+import org.jxmapviewer.viewer.WaypointPainter;
+import org.jxmapviewer.JXMapViewer;
+import org.jxmapviewer.painter.CompoundPainter;
+import org.jxmapviewer.painter.Painter;
+import org.jxmapviewer.viewer.DefaultTileFactory;
+import org.jxmapviewer.viewer.Waypoint;
+import org.jxmapviewer.OSMTileFactoryInfo;
+
+import javax.swing.*;
+import java.awt.*;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+
+public class FastPastApp extends JFrame {
+
+    private JTextField rutaField;
+    private JTextArea resultadosArea;
+    private JButton buscarButton, mapaButton;
+    private JXMapViewer mapViewer;
+    private GeoPosition userLocation;
+
+    public FastPastApp() {
+        setTitle("FastPast - Planificador de Transporte Público con Mapa");
+        setSize(800, 600);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null); // Centrar ventana
+        setLayout(new BorderLayout(10, 10));
+
+        // Panel superior para entrada de ruta
+        JPanel panelEntrada = new JPanel(new GridLayout(2, 1, 10, 10));
+        JPanel panelBoton = new JPanel(new FlowLayout());
+
+        // Etiqueta y campo de texto para ingresar la ruta
+        JLabel rutaLabel = new JLabel("Ingresa tu destino o ruta:");
+        rutaLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        rutaField = new JTextField(20);
+
+        // Botón para buscar la ruta
+        buscarButton = new JButton("Buscar Ruta");
+        buscarButton.setFont(new Font("Arial", Font.BOLD, 12));
+
+        // Botón para mostrar mapa
+        mapaButton = new JButton("Mostrar Mapa");
+        mapaButton.setFont(new Font("Arial", Font.BOLD, 12));
+
+        // Área de resultados
+        resultadosArea = new JTextArea(5, 30);
+        resultadosArea.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(resultadosArea);
+
+        // Añadir componentes a los paneles
+        panelEntrada.add(rutaLabel);
+        panelEntrada.add(rutaField);
+        panelBoton.add(buscarButton);
+        panelBoton.add(mapaButton);
+
+        // Añadir paneles a la ventana
+        add(panelEntrada, BorderLayout.NORTH);
+        add(panelBoton, BorderLayout.CENTER);
+        add(scrollPane, BorderLayout.SOUTH);
+
+        // Configurar el mapa
+        mapViewer = new JXMapViewer();
+        TileFactoryInfo info = new OSMTileFactoryInfo();
+        DefaultTileFactory tileFactory = new DefaultTileFactory(info);
+        mapViewer.setTileFactory(tileFactory);
+
+        // Acción del botón "Buscar"
+        buscarButton.addActionListener(e -> {
+            String ruta = rutaField.getText().trim();
+            if (!ruta.isEmpty()) {
+                buscarRuta(ruta);
+            } else {
+                resultadosArea.setText("Por favor, ingresa una ruta válida.");
+            }
+        });
+
+        // Acción del botón "Mostrar Mapa"
+        mapaButton.addActionListener(e -> {
+            obtenerUbicacionUsuario();
+            mostrarMapa(userLocation);
+        });
+    }
+
+    /**
+     * Simula la búsqueda de rutas. Puedes reemplazar este método con
+     * una búsqueda real conectada a una base de datos o API.
+     *
+     * @param ruta La ruta o destino ingresado por el usuario.
+     */
+    private void buscarRuta(String ruta) {
+        switch (ruta.toLowerCase()) {
+            case "centro":
+                resultadosArea.setText("Rutas encontradas para 'Centro':\n" +
+                        "- Ruta 1: Pasa en 10 minutos.\n" +
+                        "- Ruta 2: Pasa en 15 minutos.");
+                break;
+            case "hospital":
+                resultadosArea.setText("Rutas encontradas para 'Hospital':\n" +
+                        "- Ruta 5: Pasa en 5 minutos.\n" +
+                        "- Ruta 7: Pasa en 12 minutos.");
+                break;
+            default:
+                resultadosArea.setText("No se encontraron rutas para: " + ruta);
+        }
+    }
+
+    /**
+     * Obtener la ubicación del usuario mediante un servicio de geolocalización por IP.
+     */
+    private void obtenerUbicacionUsuario() {
+        try {
+            String apiURL = "http://ip-api.com/json";
+            URL url = new URL(apiURL);
+            HttpURLConnection con = (HttpURLConnection) url.openConnection();
+            con.setRequestMethod("GET");
+
+            BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+            String inputLine;
+            StringBuilder response = new StringBuilder();
+
+            while ((inputLine = in.readLine()) != null) {
+                response.append(inputLine);
+            }
+            in.close();
+
+            String jsonResponse = response.toString();
+
+            // Extraer latitud y longitud de la respuesta JSON
+            double lat = Double.parseDouble(jsonResponse.split("\"lat\":")[1].split(",")[0]);
+            double lon = Double.parseDouble(jsonResponse.split("\"lon\":")[1].split(",")[0]);
+
+            userLocation = new GeoPosition(lat, lon);
+
+        } catch (Exception e) {
+            resultadosArea.setText("Error al obtener la ubicación del usuario.");
+        }
+    }
+
+    /**
+     * Muestra un mapa con la ubicación del usuario.
+     */
+    private void mostrarMapa(GeoPosition position) {
+        if (position == null) {
+            resultadosArea.setText("No se pudo obtener la ubicación del usuario.");
+            return;
+        }
+
+        // Posicionar el mapa en la ubicación del usuario
+        mapViewer.setZoom(4);
+        mapViewer.setAddressLocation(position);
+
+        // Crear un waypoint para mostrar la posición
+        List<Waypoint> waypoints = new ArrayList<>();
+        waypoints.add(new Waypoint(position));
+
+        WaypointPainter<Waypoint> waypointPainter = new WaypointPainter<>();
+        waypointPainter.setWaypoints(waypoints);
+
+        // Pintar el waypoint en el mapa
+        List<Painter<JXMapViewer>> painters = new ArrayList<>();
+        painters.add(waypointPainter);
+
+        CompoundPainter<JXMapViewer> painter = new CompoundPainter<>(painters);
+        mapViewer.setOverlayPainter(painter);
+
+        // Mostrar el mapa en un nuevo JFrame
+        JFrame mapaFrame = new JFrame("Mapa - Ubicación del Usuario");
+        mapaFrame.setSize(600, 400);
+        mapaFrame.add(mapViewer);
+        mapaFrame.setVisible(true);
+    }
+
+    /**
+     * Método principal para iniciar la aplicación.
+     */
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            FastPastApp app = new FastPastApp();
+            app.setVisible(true);
+        });
+    }
+}
